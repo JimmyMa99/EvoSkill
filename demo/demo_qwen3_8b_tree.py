@@ -165,9 +165,9 @@ def optimize_round(adapter, tree, experiences, round_name, enable_prune=True):
         prune_strategy="moderate",  # 🔧 改为 moderate 策略
         prune_protection_rounds=1,  # 🔧 新节点保护1轮
         prune_usage_threshold=1,  # 🔧 至少使用1次
-        collapse_instead_of_prune=True,  # 🔧 折叠而非删除（渐进式披露）
+        collapse_instead_of_prune=False,  # 🔧 真正删除（修复后）
         max_tree_depth=3,
-        min_samples_for_split=3,
+        min_samples_for_split=5,  # 🔧 从 3 提高到 5
         prune_threshold=0.3,  # 🔧 性能阈值 0.3
     )
 
@@ -249,8 +249,8 @@ def main():
     best_tree = tree
     best_accuracy = initial_accuracy
 
-    # 3轮优化
-    num_rounds = 5
+    # 3轮优化（快速验证）
+    num_rounds = 3
     samples_per_round = len(train_data) // num_rounds
 
     for round_num in range(1, num_rounds + 1):

@@ -241,30 +241,41 @@ class TreeAwareOptimizer:
                 result.nodes_optimized += 1
 
             # Step 2: Auto-split analysis
-            if self.config.auto_split:
-                specs = self.analyze_split_need(
-                    prompt=optimized_prompt or self._get_node_prompt(node),
-                    experiences=experiences,
-                )
+            # 🚨 CRITICAL: Check depth limit before splitting
+            # Calculate depth from node_path (number of dots + 1)
+            current_depth = node_path.count('.') + 1 if node_path else 0
 
-                if specs:
-                    children = self.generate_child_prompts(
-                        parent_prompt=optimized_prompt or self._get_node_prompt(node),
-                        children_specs=specs,
+            if self.config.auto_split:
+                # Check if we've reached max depth
+                if current_depth >= self.config.max_tree_depth:
+                    logger.info(
+                        f"🚫 Node '{node.name}' at depth {current_depth} "
+                        f"reached max_tree_depth={self.config.max_tree_depth}, skipping split"
+                    )
+                else:
+                    specs = self.analyze_split_need(
+                        prompt=optimized_prompt or self._get_node_prompt(node),
+                        experiences=experiences,
                     )
 
-                    # Add children to tree
-                    for child_spec, child_prompt in zip(specs, children):
-                        try:
-                            tree.add_child(
-                                parent_path=node_path,
-                                child_name=child_spec["name"],
-                                skill=self._create_skill_from_prompt(child_prompt, node.skill),
-                                description=child_spec.get("description"),
-                            )
-                            result.splits_performed += 1
-                        except Exception as e:
-                            logger.error(f"Failed to add child '{child_spec['name']}': {e}")
+                    if specs:
+                        children = self.generate_child_prompts(
+                            parent_prompt=optimized_prompt or self._get_node_prompt(node),
+                            children_specs=specs,
+                        )
+
+                        # Add children to tree
+                        for child_spec, child_prompt in zip(specs, children):
+                            try:
+                                tree.add_child(
+                                    parent_path=node_path,
+                                    child_name=child_spec["name"],
+                                    skill=self._create_skill_from_prompt(child_prompt, node.skill),
+                                    description=child_spec.get("description"),
+                                )
+                                result.splits_performed += 1
+                            except Exception as e:
+                                logger.error(f"Failed to add child '{child_spec['name']}': {e}")
 
             # Step 3: Auto-prune analysis (for children)
             if self.config.auto_prune and node.children:
@@ -365,17 +376,23 @@ class TreeAwareOptimizer:
                     "below and decide whether this single System Prompt should "
                     "be SPLIT into specialised child prompts for different "
                     "domains/task-types.\n\n"
-                    "SPLIT if you see:\n"
-                    "- Contradictory requirements (e.g., formal vs casual tone)\n"
-                    "- Multiple distinct task types that need different approaches\n"
-                    "- Feedback that conflicts across different use cases\n\n"
-                    "If YES, return a JSON array of child specs:\n"
+                    "**IMPORTANT: Splitting increases complexity and should ONLY be done when clearly necessary.**\n\n"
+                    "SPLIT ONLY if you see CLEAR evidence of:\n"
+                    "- **Strong contradictory requirements** (e.g., formal vs casual tone, detailed vs concise)\n"
+                    "- **Fundamentally different task types** that cannot be handled by one prompt\n"
+                    "- **Irreconcilable feedback conflicts** that require specialized approaches\n\n"
+                    "DO NOT split if:\n"
+                    "- The prompt can be improved with better wording\n"
+                    "- Issues can be fixed with examples or clarifications\n"
+                    "- The feedback suggests incremental improvements, not structural changes\n\n"
+                    "If YES, return a JSON array of child specs (2-4 children max):\n"
                     '[{"name": "...", "description": "...", "focus": "..."}]\n\n'
                     "Each child should have:\n"
                     "- name: Short identifier (snake_case)\n"
                     "- description: Brief description of this specialization\n"
                     "- focus: What aspect this child focuses on\n\n"
                     "If NO (keep as single prompt), return exactly: null\n\n"
+                    "**Default to NOT splitting unless there is overwhelming evidence.**\n\n"
                     "Return ONLY the JSON (or null). No commentary, no markdown."
                 ),
             },
@@ -676,9 +693,16 @@ class TreeAwareOptimizer:
                 if skill_name and (node_name in skill_name or skill_name in node_name):
                     relevant_experiences.append(exp)
 
-        # If no relevant experiences found, use all experiences as fallback
+        # If no relevant experiences found, use node's usage_count attribute
         if not relevant_experiences:
-            relevant_experiences = experiences
+            # 🔧 CRITICAL FIX: Don't use all experiences as fallback
+            # Instead, use the node's tracked usage_count
+            usage_count = getattr(node, 'usage_count', 0)
+            return {
+                "performance_score": 0.5,  # Neutral score for unknown performance
+                "usage_count": usage_count,  # Use tracked usage count
+                "success_rate": 0.5,  # Neutral success rate
+            }
 
         # Calculate metrics
         if not relevant_experiences:
