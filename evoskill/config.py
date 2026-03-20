@@ -68,7 +68,17 @@ class StorageConfig(BaseSettings):
 
 
 class APOConfig(BaseSettings):
-    """Automatic Prompt Optimization hyper-parameters."""
+    """Automatic Prompt Optimization hyper-parameters.
+
+    Supports **beam search** (aligned with Microsoft Agent-Lightning APO):
+    - ``beam_width`` prompts are retained across rounds
+    - Each parent generates ``branch_factor`` candidates per round
+    - ``beam_rounds`` controls how many rounds of beam search to run
+    - ``num_candidates`` is kept for backward compat (= beam_width * branch_factor)
+
+    When ``beam_width == 1``, behavior is identical to the original
+    single-track APO (one gradient → N candidates → pick best).
+    """
 
     model_config = _settings_config(env_prefix="EVO_APO_")
 
@@ -76,7 +86,19 @@ class APOConfig(BaseSettings):
     gradient_accumulation_steps: int = Field(default=5, ge=1)
     num_candidates: int = Field(
         default=2, ge=1,
-        description="每轮生成的候选 prompt 数量。>1 时启用多候选评分选择。",
+        description="每轮生成的候选 prompt 数量（beam_width=1 时使用）。",
+    )
+    beam_width: int = Field(
+        default=1, ge=1,
+        description="Beam search 宽度。保留 top-k 个 prompt 跨轮优化。1 = 单轨模式。",
+    )
+    branch_factor: int = Field(
+        default=2, ge=1,
+        description="每个 parent prompt 生成的候选数量。",
+    )
+    beam_rounds: int = Field(
+        default=3, ge=1,
+        description="Beam search 轮数。每轮对 beam 中的每个 prompt 做一次梯度+编辑。",
     )
 
 

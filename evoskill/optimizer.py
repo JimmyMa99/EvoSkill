@@ -120,85 +120,185 @@ class APOEngine:
     # ------------------------------------------------------------------
 
     def optimize(self, current_skill: Skill, traces: List[Trace]) -> Skill:
-        """Run a single APO cycle and return an improved Skill.
+        """Run APO optimization and return an improved Skill.
 
-        Flow:
-        1. Diagnose — select traces with feedback
-        2. Gradient — compute textual gradient (randomly chosen template)
-        3. Candidates — generate N candidate rewrites **in parallel**
-        4. Score — evaluate all candidates **in parallel**
-        5. Select — pick the best (or keep original if none improve)
+        When ``beam_width == 1`` (default), runs the original single-track
+        APO: one gradient → N candidates → pick best.
+
+        When ``beam_width > 1``, runs **beam search** (aligned with
+        Microsoft Agent-Lightning):
+        1. Initialize beam with the current prompt
+        2. For each round:
+           a. For each prompt in beam, compute gradient from a sampled batch
+           b. Generate ``branch_factor`` candidates per parent
+           c. Score all (old beam + new candidates)
+           d. Keep top ``beam_width`` prompts
+        3. Return the best prompt seen across all rounds
         """
-        # Step 1 — Diagnosis
         diagnosed = [t for t in traces if t.feedback is not None]
         if not diagnosed:
             logger.info("No feedback traces available — skipping optimization.")
             return current_skill
 
-        batch_size = self._config.apo.gradient_accumulation_steps
-        diagnosed = diagnosed[-batch_size:]
+        apo = self._config.apo
 
-        # Step 2 — Gradient (random template for diversity)
-        gradient = self._compute_gradient(current_skill, diagnosed)
+        if apo.beam_width <= 1:
+            return self._optimize_single(current_skill, diagnosed)
+        return self._optimize_beam(current_skill, diagnosed)
+
+    # ------------------------------------------------------------------
+    # Single-track APO (beam_width=1, backward compatible)
+    # ------------------------------------------------------------------
+
+    def _optimize_single(self, skill: Skill, diagnosed: List[Trace]) -> Skill:
+        """Original single-track APO: gradient → N candidates → pick best."""
+        batch_size = self._config.apo.gradient_accumulation_steps
+        batch = diagnosed[-batch_size:]
+
+        # Gradient
+        gradient = self._compute_gradient(skill, batch)
         logger.debug("Gradient analysis:\n%s", gradient)
 
-        # Step 3 — Generate N candidates in parallel
+        # Generate N candidates in parallel
         num_candidates = self._config.apo.num_candidates
-        edit_message_batches = [
-            self._build_edit_messages(current_skill, gradient)
+        edit_batches = [
+            self._build_edit_messages(skill, gradient)
             for _ in range(num_candidates)
         ]
-        candidate_responses = self._llm.generate_batch(
-            edit_message_batches,
-            model=self._config.llm.judge_model,
+        responses = self._llm.generate_batch(
+            edit_batches, model=self._config.llm.judge_model,
         )
         candidates = [
             r.content if isinstance(r.content, str) else str(r.content)
-            for r in candidate_responses
-            if r.content  # skip empty responses
+            for r in responses if r.content
         ]
         logger.info("Generated %d candidates (requested %d)", len(candidates), num_candidates)
-
         if not candidates:
             logger.warning("All candidate generations failed — keeping original.")
-            return current_skill
+            return skill
 
-        # Step 4 — Score all (original + candidates) in parallel
-        all_prompts = [current_skill.system_prompt] + candidates
-        score_message_batches = [
-            self._build_score_messages(prompt, diagnosed)
-            for prompt in all_prompts
-        ]
-        score_responses = self._llm.generate_batch(
-            score_message_batches,
-            model=self._config.llm.judge_model,
-        )
-        scores = [
-            self._parse_score(r.content if isinstance(r.content, str) else str(r.content))
-            for r in score_responses
-        ]
+        # Score all (original + candidates)
+        all_prompts = [skill.system_prompt] + candidates
+        scores = self._score_prompts_batch(all_prompts, batch)
 
-        # Log scores
         logger.info("Current prompt score: %.2f", scores[0])
         for i, s in enumerate(scores[1:]):
             logger.info("Candidate %d score: %.2f", i + 1, s)
 
-        # Step 5 — Select best
         best_idx = max(range(len(scores)), key=lambda i: scores[i])
         if best_idx == 0:
             logger.info("No candidate improved over current — keeping original.")
-            return current_skill
+            return skill
 
-        best_prompt = all_prompts[best_idx]
-        best_score = scores[best_idx]
-        new_version = _increment_version(current_skill.version)
-        logger.info("Accepted candidate %d (score=%.2f) → %s", best_idx, best_score, new_version)
-        return current_skill.model_copy(
-            update={
-                "system_prompt": best_prompt,
-                "version": new_version,
-            }
+        new_version = _increment_version(skill.version)
+        logger.info("Accepted candidate %d (score=%.2f) → %s", best_idx, scores[best_idx], new_version)
+        return skill.model_copy(update={
+            "system_prompt": all_prompts[best_idx],
+            "version": new_version,
+        })
+
+    # ------------------------------------------------------------------
+    # Beam search APO (aligned with Agent-Lightning)
+    # ------------------------------------------------------------------
+
+    def _optimize_beam(self, skill: Skill, diagnosed: List[Trace]) -> Skill:
+        """Beam search APO: maintain top-k prompts across rounds.
+
+        Algorithm (per Agent-Lightning):
+        1. beam = [current_prompt]
+        2. for each round:
+           a. sample parents from beam (up to beam_width)
+           b. for each parent: gradient → branch_factor candidates
+           c. pool = beam + all new candidates
+           d. score pool, keep top beam_width
+        3. return history best
+        """
+        apo = self._config.apo
+        beam_width = apo.beam_width
+        branch_factor = apo.branch_factor
+        beam_rounds = apo.beam_rounds
+        batch_size = apo.gradient_accumulation_steps
+
+        beam: List[str] = [skill.system_prompt]
+        history_best_prompt = skill.system_prompt
+        history_best_score = -1.0
+
+        for round_num in range(1, beam_rounds + 1):
+            logger.info("Beam round %d/%d (beam size=%d)", round_num, beam_rounds, len(beam))
+
+            # Pad beam to beam_width by replicating
+            parents = beam[:]
+            while len(parents) < beam_width:
+                parents.append(random.choice(beam))
+            parents = parents[:beam_width]
+
+            # For each parent: gradient + branch_factor candidates
+            all_new: List[str] = []
+            for pidx, parent_prompt in enumerate(parents):
+                # Sample a fresh batch for this parent's gradient
+                batch = random.sample(diagnosed, min(batch_size, len(diagnosed)))
+                parent_skill = skill.model_copy(update={"system_prompt": parent_prompt})
+                gradient = self._compute_gradient(parent_skill, batch)
+
+                # Generate branch_factor candidates in parallel
+                edit_batches = [
+                    self._build_edit_messages(parent_skill, gradient)
+                    for _ in range(branch_factor)
+                ]
+                responses = self._llm.generate_batch(
+                    edit_batches, model=self._config.llm.judge_model,
+                )
+                new_prompts = [
+                    r.content if isinstance(r.content, str) else str(r.content)
+                    for r in responses if r.content
+                ]
+                all_new.extend(new_prompts)
+                logger.info(
+                    "  Parent %d/%d → %d candidates",
+                    pidx + 1, len(parents), len(new_prompts),
+                )
+
+            if not all_new:
+                logger.warning("Round %d: no candidates generated, keeping beam.", round_num)
+                continue
+
+            # Score: old beam + new candidates
+            pool = beam + all_new
+            # Use a validation batch for scoring
+            val_batch = random.sample(diagnosed, min(batch_size, len(diagnosed)))
+            scores = self._score_prompts_batch(pool, val_batch)
+
+            # Keep top beam_width
+            ranked = sorted(
+                zip(pool, scores), key=lambda x: x[1], reverse=True,
+            )
+            beam = [p for p, _ in ranked[:beam_width]]
+            top_score = ranked[0][1]
+
+            logger.info(
+                "  Round %d result: top=%.2f, beam=[%s]",
+                round_num, top_score,
+                ", ".join(f"{s:.2f}" for _, s in ranked[:beam_width]),
+            )
+
+            # Track history best
+            if top_score > history_best_score:
+                history_best_score = top_score
+                history_best_prompt = ranked[0][0]
+
+        # Return best prompt found across all rounds
+        if history_best_prompt == skill.system_prompt:
+            logger.info("Beam search: no improvement found — keeping original.")
+            return skill
+
+        new_version = _increment_version(skill.version)
+        logger.info(
+            "Beam search: best score=%.2f → %s", history_best_score, new_version,
         )
+        return skill.model_copy(update={
+            "system_prompt": history_best_prompt,
+            "version": new_version,
+        })
 
     # ------------------------------------------------------------------
     # Gradient computation (with template diversity)
@@ -379,6 +479,19 @@ class APOEngine:
         )
         raw = response.content if isinstance(response.content, str) else str(response.content)
         return self._parse_score(raw)
+
+    def _score_prompts_batch(self, prompts: List[str], traces: List[Trace]) -> List[float]:
+        """Score multiple prompts in parallel and return a list of scores."""
+        batches = [self._build_score_messages(p, traces) for p in prompts]
+        responses = self._llm.generate_batch(
+            batches, model=self._config.llm.judge_model,
+        )
+        return [
+            self._parse_score(
+                r.content if isinstance(r.content, str) else str(r.content)
+            )
+            for r in responses
+        ]
 
     # ------------------------------------------------------------------
     # Tree-aware optimization

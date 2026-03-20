@@ -2,8 +2,8 @@
 """
 10 分钟最小化树优化 Demo — 论文分类
 
-故意用一个很烂的 baseline prompt，3 类、少量数据、2 轮优化。
-预期: baseline ~40-50% → 优化后 ~70%+，并触发 auto-split 产生子节点。
+用一个较弱的 baseline prompt（有类别名但缺关键词提示），3 类、少量数据、2 轮优化。
+预期: baseline ~50-60% → 优化后 ~70%+，并触发 auto-split 产生子节点。
 
 用法:
     conda activate pr
@@ -50,12 +50,14 @@ NUM_ROUNDS = 2
 NUM_CANDIDATES = 2
 OUTPUT_DIR = Path("demo/outputs/tree-minimal-10min")
 
-# 故意写得很烂的 baseline — 没有类别描述，只有字母
-BAD_BASELINE = """Classify the paper into one category. Reply with a single letter.
+# 较弱的 baseline — 有类别名但缺关键词提示，留出优化空间
+BAD_BASELINE = """You are a paper classifier. Given a scientific paper, classify it.
 
-Categories: A, E, M
+A - physics
+E - engineering
+M - computers
 
-Reply ONLY the letter."""
+Output only the letter."""
 
 
 # ── Data ───────────────────────────────────────────────
@@ -164,6 +166,10 @@ def main():
         "apo": config.apo.model_copy(update={
             "num_candidates": NUM_CANDIDATES,
             "gradient_accumulation_steps": 8,
+            # Beam search (aligned with Agent-Lightning APO)
+            "beam_width": 2,
+            "branch_factor": 2,
+            "beam_rounds": 2,
         }),
     })
     llm = LLMClient(config)
