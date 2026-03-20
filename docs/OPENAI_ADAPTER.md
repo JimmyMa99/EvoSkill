@@ -25,8 +25,8 @@ pip install openai tiktoken
 ### 2. 基本使用
 
 ```python
-from evo_framework.core import TextPrompt
-from evo_framework.adapters.openai import OpenAIAdapter
+from evoskill.core import TextPrompt
+from evoskill.adapters.openai import OpenAIAdapter
 
 # 创建适配器
 adapter = OpenAIAdapter(
@@ -48,7 +48,7 @@ print(response)
 ### 3. 使用对话上下文
 
 ```python
-from evo_framework.core import ConversationExperience
+from evoskill.core import ConversationExperience
 
 # 创建对话历史
 experiences = [
@@ -65,7 +65,7 @@ response = adapter.generate(prompt, context=experiences)
 ### 4. Prompt优化
 
 ```python
-from evo_framework.core import CompositeFeedback
+from evoskill.core import CompositeFeedback
 
 # 创建失败经验
 bad_experience = ConversationExperience(
@@ -162,7 +162,7 @@ total_tokens = adapter.count_messages_tokens(messages)
 ### 2. Prompt验证
 
 ```python
-from evo_framework.core import MultimodalPrompt
+from evoskill.core import MultimodalPrompt
 
 # 多模态Prompt
 mm_prompt = MultimodalPrompt(
@@ -320,7 +320,7 @@ adapter = OpenAIAdapter(
 ### Q: 如何处理vision任务？
 
 ```python
-from evo_framework.core import MultimodalPrompt
+from evoskill.core import MultimodalPrompt
 
 # 创建多模态prompt
 prompt = MultimodalPrompt(

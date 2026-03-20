@@ -1,4 +1,4 @@
-# Evo-Framework 核心架构理解
+# EvoSkill 核心架构理解
 
 > 本文档面向下一任开发者，记录框架的设计决策、核心数据流、各模块职责与扩展点。
 
@@ -8,7 +8,7 @@
 
 框架的核心类比是 **"训练神经网络"**，但操作对象是 System Prompt 而非模型权重：
 
-| 深度学习概念 | Evo-Framework 对应 |
+| 深度学习概念 | EvoSkill 对应 |
 |-------------|-------------------|
 | 模型权重 | System Prompt（`Skill.system_prompt`） |
 | 训练数据 | 交互历史（`Trace` 对象，存在 JSONL 中） |
@@ -105,7 +105,7 @@ SkillTree.save(directory)
 - `save()` 使用 `allow_unicode=True`，中文直接可读（不再转义为 `\uXXXX`）
 - `compile_messages()` 的拼接顺序: `[system] + [few_shot] + [user_input]`
 
-### skill_tree.py — 层级 Skill 树 ✨ 新模块
+### skill_tree.py — 层级 Skill 树
 - **核心理念**: 文件夹即层级，目录结构表达树形关系
 - `SkillNode` 数据类 — 树节点，包含 `skill`（root.yaml）+ `children` 字典 + `meta`（_meta.yaml）
 - `SkillTree` 类 — 管理整棵树的生命周期：
@@ -135,7 +135,7 @@ my-skills/
     └── email.yaml
 ```
 
-### checkpoint.py — Checkpoint 管理 ✨ 新模块
+### checkpoint.py — Checkpoint 管理
 - **核心理念**: 每次优化后自动快照，可随时恢复到任意中间状态
 - `CheckpointManager` 类：
 
@@ -157,18 +157,21 @@ ckpt/
         └── meta.json       # 优化轮次、版本、时间等
 ```
 
-### optimizer.py — APO 优化引擎
-- **核心算法**: 两步 LLM 调用
-  1. `_compute_gradient()`: "你是 prompt 工程专家，分析这些失败案例，解释为什么 prompt 导致了这些问题"
-  2. `_apply_update()`: "基于分析，重写 System Prompt，只返回新的 prompt"
-- **target 融入方式**: 如果 `skill.target` 不为空，在两步的 system prompt 中追加 target 方向提示
+### optimizer.py — APO 优化引擎（对齐 Agent-Lightning）
+- **搜索策略**：支持单轨模式（beam_width=1）和 Beam Search（beam_width>1）
+- **核心算法**: 多模板 × 多候选 × 评分选择
+  1. `_compute_gradient()`: 随机选 3 种梯度模板之一，让 judge 分析失败原因
+  2. `_build_edit_messages()`: 随机选 2 种编辑模板之一（激进重写 / 保守修复），生成候选
+  3. `_score_prompts_batch()`: 并行评分所有候选，选最佳或保留 top-k beam
+- **target 融入方式**: 如果 `skill.target` 不为空，在梯度和编辑环节的 system prompt 中追加方向提示
+- **节点级 trace 路由**: `Trace.node_path` 确保每个节点只用属于自己的数据优化
 - 版本号自动递增: `v1.0` → `v1.1` → `v1.2`
 
-**树感知扩展** ✨：
-- `analyze_split_need(skill, traces)` → 让 LLM 判断反馈是否跨领域，建议拆分方案（返回 JSON 子技能规格列表或 None）
+**树感知扩展**：
+- `analyze_split_need(skill, traces)` → 让 LLM 判断反馈是否跨领域，建议拆分方案
 - `generate_child_prompts(parent, specs)` → 为每个子技能生成专属 System Prompt
-- `evolve_tree(tree, traces)` → 递归底向上优化整棵树，每个节点先 optimize() 再 analyze_split_need()
-- `_evolve_node()` → 内部递归辅助
+- `evolve_tree(tree, traces)` → 递归底向上优化整棵树（含 rich 进度条 + ETA）
+- `_evolve_node()` → 内部递归辅助，按 node_path 过滤 traces
 
 ### cli.py — 终端界面
 - 基于 Rich 库，支持 Markdown 渲染

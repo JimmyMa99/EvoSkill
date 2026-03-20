@@ -81,36 +81,54 @@ graph TD
 
 ---
 
-## 核心 TGD 循环
+## 核心 APO 循环（Beam Search）
 
-无论哪种模式，内部都走同一套 TGD 循环：
+无论哪种模式，内部都走 APO 引擎（对齐 Agent-Lightning）。支持两种搜索策略：
+
+### 单轨模式（beam_width=1，默认）
 
 ```mermaid
 graph LR
-    A[失败案例] --> B[梯度计算]
-    B --> C[分析失败原因]
-    C --> D[改进建议]
-
-    D --> E[梯度应用]
-    E --> F[重写 Prompt]
-
-    F --> G{验证}
-    G -->|通过| H[返回新 Prompt]
-    G -->|不通过| A
-
-    H --> I["版本号 +1"]
+    A[失败 Traces] --> B[梯度模板随机选 1/3]
+    B --> C[Judge 分析失败原因]
+    C --> D[编辑模板随机选 1/2]
+    D --> E["生成 N 个候选"]
+    E --> F[并行评分]
+    F --> G{最佳候选 > 原 prompt?}
+    G -->|是| H["采纳，版本号 +1"]
+    G -->|否| I[保持原 prompt]
 
     style A fill:#ffcdd2
-    style B fill:#fff9c4
+    style C fill:#fff9c4
     style E fill:#fff9c4
     style H fill:#c8e6c9
 ```
 
+### Beam Search 模式（beam_width>1）
+
+```mermaid
+graph TD
+    A["初始 beam = [当前 prompt]"] --> B["Round 1..N"]
+    B --> C["对每个 parent prompt:"]
+    C --> D["采样 traces → 计算梯度"]
+    D --> E["生成 branch_factor 个候选"]
+    E --> F["pool = beam + 所有新候选"]
+    F --> G["并行评分，保留 top beam_width"]
+    G --> H{还有剩余轮次?}
+    H -->|是| B
+    H -->|否| I["返回历史最佳 prompt"]
+
+    style A fill:#e1f5ff
+    style G fill:#fff9c4
+    style I fill:#c8e6c9
+```
+
 **核心思想**：
 - 失败案例 = 训练信号
-- 文本梯度 = 自然语言的失败分析
-- 梯度应用 = 据此重写 prompt
-- 无需训练模型，仅靠 API 调用
+- 文本梯度 = 自然语言的失败分析（3 种模板随机选择增加多样性）
+- 编辑策略 = 激进重写 / 保守单点修复（2 种模板随机选择）
+- Beam Search = 保留 top-k prompt 跨轮优化，避免局部最优
+- 免训练，仅靠 API 调用
 
 ---
 
@@ -151,4 +169,6 @@ graph TD
 | 自动剪枝 | 低性能子节点自动移除 |
 | 策略选择 | 保守 / 激进 / 自适应三种策略 |
 | 部分优化 | 可只优化 prompt 的指令、示例、或约束部分 |
+| Beam Search | beam_width>1 时保留多个候选跨轮优化 |
+| 节点级路由 | Trace.node_path 让每个节点只用属于自己的数据优化 |
 | 断点续跑 | 中断后可从上次进度恢复 |
