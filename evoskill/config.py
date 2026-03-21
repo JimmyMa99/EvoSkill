@@ -65,6 +65,15 @@ class StorageConfig(BaseSettings):
 
     trace_path: Path = Field(default=Path("./data/traces.jsonl"))
     skill_path: Path = Field(default=Path("./skills"))
+    enable_file_locking: bool = Field(
+        default=True,
+        description="Enable file locking for concurrent access protection",
+    )
+    lock_timeout: float = Field(
+        default=10.0,
+        ge=0.0,
+        description="Timeout in seconds for acquiring file locks",
+    )
 
 
 class APOConfig(BaseSettings):
