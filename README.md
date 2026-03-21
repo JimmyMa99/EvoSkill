@@ -1,5 +1,7 @@
 # EvoSkill
 
+[English](./docs_en/README.md) | 中文
+
 **Train-Free Agent Prompt 自进化框架**
 
 把 System Prompt 当作"权重"，把交互反馈当作"训练信号"，通过文本梯度下降（TGD）让 prompt 自动进化——免训练，免标注，只靠 API 调用。
