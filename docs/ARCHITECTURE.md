@@ -261,8 +261,8 @@ ckpt/
 
 ## 5. 已知待改进
 
-- **Trace 重复**: `/bad` 和 `/rewrite` 会重新 `append` 同一 trace（带 feedback），导致 JSONL 中同一 ID 出现两次。建议改为原地更新或用 ID 去重。
-- **APO 多轮**: 当前 `optimize()` 只做一次梯度+更新。`APOConfig.max_steps` 字段已预留但未在循环中使用。
+- ~~**Trace 重复**: `/bad` 和 `/rewrite` 会重新 `append` 同一 trace，导致 JSONL 中同一 ID 出现两次。~~ 已解决：`TraceStorage.upsert()` 按 ID 替换，`load_all()` 自动去重。
+- **APO 多轮**: 当前 `APOEngine.optimize()` 只做一次梯度+更新。`TrainFreeOptimizer` 支持多步优化但尚未统一到主路径。
 - **Few-shot 自动构建**: 高分的 Trace 可以自动提取为 `few_shot_messages`，目前未实现。
 - **并发安全**: JSONL 文件追加在多进程场景下可能有问题，建议考虑文件锁。
 - **Skill 树路由**: 当前需用户手动 `/select` 切换子技能。可考虑根据用户输入自动匹配最合适的叶子节点。
