@@ -110,11 +110,23 @@ class APOEngine:
         Framework-wide configuration (judge model, APO hyper-params, etc.).
     llm : LLMClient
         Shared LLM client used to talk to the judge model.
+    score_fn : callable, optional
+        A user-supplied scoring function with signature
+        ``(prompt: str, traces: List[Trace]) -> float``.
+        When provided, beam search uses this to score candidate prompts
+        instead of asking the judge model to score subjectively.
+        Typically this runs the real task model and computes accuracy.
     """
 
-    def __init__(self, config: GlobalConfig, llm: LLMClient) -> None:
+    def __init__(
+        self,
+        config: GlobalConfig,
+        llm: LLMClient,
+        score_fn: Optional[Callable[[str, List[Trace]], float]] = None,
+    ) -> None:
         self._config = config
         self._llm = llm
+        self._score_fn = score_fn
 
     # ------------------------------------------------------------------
     # Public API
@@ -311,18 +323,13 @@ class APOEngine:
     def _compute_gradient(self, skill: Skill, traces: List[Trace]) -> str:
         """Ask the judge model to explain *why* the current prompt failed.
 
-        Randomly selects one of 3 gradient templates for diversity.
+        Aligned with Agent-Lightning: the judge sees the full rollout trace
+        including the model's prediction, ground truth (correction), and
+        reward (score). Randomly selects one of 3 gradient templates.
         """
-        failure_descriptions: List[str] = []
+        rollout_descriptions: List[str] = []
         for t in traces:
             feedback: Feedback = t.feedback  # type: ignore[assignment]
-            if feedback.correction:
-                feedback_text = f"The ideal response should have been: {feedback.correction}"
-            elif feedback.critique:
-                feedback_text = f"Critique: {feedback.critique}"
-            else:
-                feedback_text = f"Score: {feedback.score}"
-
             user_text = _extract_last_user_text(t.inputs)
             agent_text = (
                 t.prediction.content
@@ -330,13 +337,19 @@ class APOEngine:
                 else "[multimodal response]"
             )
 
-            failure_descriptions.append(
-                f"- User said: \"{user_text}\"\n"
-                f"  Agent said: \"{agent_text}\"\n"
-                f"  Feedback: {feedback_text}"
-            )
+            status = "FAIL" if feedback.score < 0.5 else "PASS"
+            parts = [
+                f"- [{status}] reward={feedback.score:.1f}",
+                f"  Input: \"{user_text}\"",
+                f"  Model output: \"{agent_text}\"",
+            ]
+            if feedback.correction:
+                parts.append(f"  Expected answer: \"{feedback.correction}\"")
+            if feedback.critique:
+                parts.append(f"  Critique: {feedback.critique}")
+            rollout_descriptions.append("\n".join(parts))
 
-        failures_block = "\n".join(failure_descriptions)
+        rollouts_block = "\n".join(rollout_descriptions)
 
         # Randomly select gradient template
         system_prompt = random.choice(_GRADIENT_TEMPLATES)
@@ -354,7 +367,7 @@ class APOEngine:
                 role="user",
                 content=(
                     f"The current System Prompt is:\n\"\"\"\n{skill.system_prompt}\n\"\"\"\n\n"
-                    f"Here are the failures:\n{failures_block}\n\n"
+                    f"Rollout results:\n{rollouts_block}\n\n"
                     "Analyze the failures now."
                 ),
             ),
@@ -403,11 +416,41 @@ class APOEngine:
         return response.content if isinstance(response.content, str) else str(response.content)
 
     # ------------------------------------------------------------------
-    # Candidate scoring (lightweight validation)
+    # Candidate scoring (real-model rollout + judge grading)
     # ------------------------------------------------------------------
 
+    def _build_grade_messages(
+        self, model_output: str, expected: str,
+    ) -> List[Message]:
+        """Build messages for judge-based grading (Agent-Lightning style).
+
+        The judge compares the model's actual output against the expected
+        answer and returns a 0-1 score.
+        """
+        return [
+            Message(
+                role="system",
+                content=(
+                    "You are a strict grader. Compare the task output against "
+                    "the expected answer. Score the match on a 0-1 scale.\n"
+                    "- 1.0 = correct or semantically equivalent\n"
+                    "- 0.5 = partially correct\n"
+                    "- 0.0 = wrong\n\n"
+                    "Return ONLY a number between 0.0 and 1.0. Nothing else."
+                ),
+            ),
+            Message(
+                role="user",
+                content=(
+                    f"Task output:\n{model_output}\n\n"
+                    f"Expected answer:\n{expected}\n\n"
+                    "Score (0.0-1.0):"
+                ),
+            ),
+        ]
+
     def _build_score_messages(self, prompt: str, traces: List[Trace]) -> List[Message]:
-        """Build the messages for a single scoring request."""
+        """Build the messages for a single scoring request (legacy fallback)."""
         failure_summaries: List[str] = []
         for t in traces:
             fb: Feedback = t.feedback  # type: ignore[assignment]
@@ -485,7 +528,19 @@ class APOEngine:
         return self._parse_score(raw)
 
     def _score_prompts_batch(self, prompts: List[str], traces: List[Trace]) -> List[float]:
-        """Score multiple prompts in parallel and return a list of scores."""
+        """Score multiple prompts and return a list of scores.
+
+        When ``score_fn`` is set, runs real task evaluation in parallel
+        (aligned with Agent-Lightning). Otherwise falls back to judge scoring.
+        """
+        if self._score_fn is not None:
+            with ThreadPoolExecutor(max_workers=len(prompts)) as pool:
+                scores = list(pool.map(
+                    lambda p: self._score_fn(p, traces), prompts,
+                ))
+            return scores
+
+        # Fallback: judge-based scoring
         batches = [self._build_score_messages(p, traces) for p in prompts]
         responses = self._llm.generate_batch(
             batches, model=self._config.llm.judge_model,

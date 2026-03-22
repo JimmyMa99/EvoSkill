@@ -181,7 +181,47 @@ def main():
         }),
     })
     llm = LLMClient(config)
+
     engine = APOEngine(config, llm)
+
+    # Real-model scoring (Agent-Lightning style):
+    # 1. Run task model with candidate prompt
+    # 2. Judge grades each output vs expected answer
+    # 3. Average reward = prompt score
+    def real_score_fn(prompt: str, traces: List[Trace]) -> float:
+        # Step 1: run task model in parallel
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+            futures = {}
+            for t in traces:
+                user_text = t.inputs[-1].content if t.inputs else ""
+                paper = user_text.replace("Paper:\n", "", 1) if user_text.startswith("Paper:\n") else user_text
+                futures[pool.submit(classify, client, prompt, paper)] = t
+            preds = {}
+            for f in as_completed(futures):
+                preds[futures[f].id] = f.result()
+
+        # Step 2: judge grades each (prediction, expected) pair in parallel
+        grade_batches = []
+        for t in traces:
+            expected = t.feedback.correction if t.feedback and t.feedback.correction else None
+            if expected is None:
+                expected = t.prediction.content.strip().upper() if t.prediction.content else ""
+            grade_batches.append(
+                engine._build_grade_messages(preds[t.id], expected)
+            )
+
+        responses = llm.generate_batch(grade_batches, model=JUDGE_MODEL)
+
+        # Step 3: average reward
+        total_reward = sum(
+            engine._parse_score(
+                r.content if isinstance(r.content, str) else str(r.content)
+            )
+            for r in responses
+        )
+        return total_reward / len(responses) if responses else 0.0
+
+    engine._score_fn = real_score_fn
 
     # Create初始 skill 树
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
