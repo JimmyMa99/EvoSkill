@@ -1,10 +1,10 @@
-"""Tests for tresskill.memory — 用户记忆模块。"""
+"""Tests for treeskill.memory — 用户记忆模块。"""
 
 from pathlib import Path
 
 import pytest
 
-from tresskill.memory import (
+from treeskill.memory import (
     MEMORY_FILE,
     MemoryCompiler,
     MemoryEntry,

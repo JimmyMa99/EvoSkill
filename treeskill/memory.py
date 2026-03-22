@@ -42,7 +42,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from tresskill.schema import Feedback, Message, Trace
+from treeskill.schema import Feedback, Message, Trace
 
 logger = logging.getLogger(__name__)
 

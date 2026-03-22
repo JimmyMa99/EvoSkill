@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from tresskill.schema import Skill, ToolRef, AgendaEntry, AgendaType, Recurrence
-from tresskill.skill import load, save
-from tresskill.skill_tree import SkillTree, SkillNode, resolve_skill_tools
+from treeskill.schema import Skill, ToolRef, AgendaEntry, AgendaType, Recurrence
+from treeskill.skill import load, save
+from treeskill.skill_tree import SkillTree, SkillNode, resolve_skill_tools
 
 
 # ---------------------------------------------------------------------------
@@ -377,7 +377,7 @@ class TestGraft:
         tree = self._make_tree()
         skill = Skill(name="social", system_prompt="Dup.")
 
-        with pytest.raises(ValueError, match="已存在"):
+        with pytest.raises(ValueError, match="already exists"):
             tree.graft("", skill)
 
     def test_graft_preserves_tools(self):

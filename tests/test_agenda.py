@@ -1,15 +1,15 @@
-"""Tests for tresskill.agenda — 基于 Skill 标准的长程日程模块。"""
+"""Tests for treeskill.agenda — 基于 Skill 标准的长程日程模块。"""
 
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from tresskill.agenda import (
+from treeskill.agenda import (
     AgendaManager,
     compile_agenda_context,
     parse_due,
 )
-from tresskill.schema import (
+from treeskill.schema import (
     AgendaEntry,
     AgendaType,
     Recurrence,
@@ -124,7 +124,7 @@ class TestAgendaEntry:
             origin_year=2021,
         )
         info = entry.display_info(reference_date=date(2026, 3, 14))
-        assert "第 5 年" in info
+        assert "year 5" in info
 
     def test_serialization_roundtrip(self):
         entry = AgendaEntry(
@@ -165,7 +165,7 @@ class TestSkillAgendaIntegration:
 
     def test_skill_save_load_with_agenda(self, tmp_path):
         """agenda 通过 config.yaml 持久化。"""
-        from tresskill.skill import load, save
+        from treeskill.skill import load, save
 
         skill = Skill(
             name="agenda-test",
@@ -204,7 +204,7 @@ class TestSkillAgendaIntegration:
 
     def test_skill_without_agenda(self, tmp_path):
         """无 agenda 时 config.yaml 不含 agenda 字段。"""
-        from tresskill.skill import load, save
+        from treeskill.skill import load, save
 
         skill = Skill(name="no-agenda", system_prompt="Hello.")
         save(skill, tmp_path)
@@ -396,7 +396,7 @@ class TestCompileContext:
             ),
         ]
         ctx = compile_agenda_context(agenda, today=date(2026, 3, 14))
-        assert "第 5 年" in ctx
+        assert "year 5" in ctx
 
     def test_milestones(self):
         agenda = [
@@ -438,8 +438,8 @@ class TestCompileContext:
 class TestCompileMessagesWithAgenda:
 
     def test_agenda_injected(self):
-        from tresskill.schema import Message
-        from tresskill.skill import compile_messages
+        from treeskill.schema import Message
+        from treeskill.skill import compile_messages
 
         skill = Skill(
             name="test",

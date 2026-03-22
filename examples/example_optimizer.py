@@ -45,10 +45,10 @@ def create_mock_failures():
 
     # Failure case 1: 回答太啰嗦
     exp1 = ConversationExperience(
-        conversation=[
+        messages=[
             {"role": "user", "content": "What is Python?"},
-            {"role": "assistant", "content": "Python是一种高级编程语言，由Guido van Rossum于1991年Create...（后面还有500字）"},
         ],
+        response="Python是一种高级编程语言，由Guido van Rossum于1991年Create...（后面还有500字）",
         feedback=CompositeFeedback(
             feedback_type=FeedbackType.NEGATIVE,
             critique="回答太长太啰嗦，用户只需要简单解释",
@@ -59,10 +59,10 @@ def create_mock_failures():
 
     # Failure case 2: 没有回答重点
     exp2 = ConversationExperience(
-        conversation=[
+        messages=[
             {"role": "user", "content": "How do I sort a list?"},
-            {"role": "assistant", "content": "排序是一个复杂的话题，涉及计算机科学的基础..."},
         ],
+        response="排序是一个复杂的话题，涉及计算机科学的基础...",
         feedback=CompositeFeedback(
             feedback_type=FeedbackType.CORRECTION,
             critique="没有给出直接答案",
@@ -73,10 +73,10 @@ def create_mock_failures():
 
     # Failure case 3: 格式混乱
     exp3 = ConversationExperience(
-        conversation=[
+        messages=[
             {"role": "user", "content": "Explain machine learning"},
-            {"role": "assistant", "content": "机器学习是AI的一个分支它使用算法从数据中学习然后做出预测..."},
         ],
+        response="机器学习是AI的一个分支它使用算法从数据中学习然后做出预测...",
         feedback=CompositeFeedback(
             feedback_type=FeedbackType.NEGATIVE,
             critique="格式混乱，难以阅读",

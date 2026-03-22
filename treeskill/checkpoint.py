@@ -85,6 +85,8 @@ class CheckpointManager:
             else:
                 name = f"{skill_source.name}_{ts}"
 
+        # Sanitize name to prevent path traversal
+        name = name.replace("..", "_").replace("/", "_").replace("\\", "_")
         ckpt_path = self.ckpt_dir / name
         ckpt_path.mkdir(parents=True, exist_ok=True)
 

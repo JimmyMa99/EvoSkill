@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 import logging
 import random
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import Callable, Dict, List, Optional, TYPE_CHECKING
 
 from rich.progress import (
     BarColumn,
@@ -606,7 +606,7 @@ class APOEngine:
         traces: List[Trace],
         auto_split: bool = True,
         resume: Optional[ResumeState] = None,
-        on_node_done: Optional[callable] = None,
+        on_node_done: Optional[Callable] = None,
     ) -> "SkillTree":
         """Recursively optimise every skill in a tree with resume support.
 
@@ -663,7 +663,7 @@ class APOEngine:
         tree: "SkillTree",
         auto_split: bool = True,
         resume: Optional[ResumeState] = None,
-        on_node_done: Optional[callable] = None,
+        on_node_done: Optional[Callable] = None,
         _path_prefix: str = "",
         _progress: Optional[Progress] = None,
         _task_id: Optional[int] = None,

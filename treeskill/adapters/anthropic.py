@@ -190,6 +190,8 @@ class AnthropicAdapter(BaseModelAdapter):
         response = self.client.messages.create(**api_params)
 
         # Extract text from response
+        if not response.content:
+            raise RuntimeError("Anthropic API returned empty content array")
         content = response.content[0].text
         logger.debug(f"Generated {len(content)} characters")
 
@@ -223,6 +225,8 @@ class AnthropicAdapter(BaseModelAdapter):
             api_params["system"] = system
 
         response = self.client.messages.create(**api_params)
+        if not response.content:
+            raise RuntimeError("Anthropic API returned empty content array")
         return response.content[0].text
 
     def _count_tokens_impl(self, text: str) -> int:
@@ -352,7 +356,7 @@ class AnthropicAdapter(BaseModelAdapter):
                 return content.get("text", "")
             elif content.get("type") == "image_url":
                 # Convert from OpenAI format
-                url = content.get("image_url", {}).get("url", "")
+                url = (content.get("image_url") or {}).get("url", "")
                 if url.startswith("data:"):
                     # Data URL format
                     return [

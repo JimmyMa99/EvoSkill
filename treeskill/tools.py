@@ -166,7 +166,13 @@ class HTTPTool(BaseTool):
                 )
 
             response.raise_for_status()
-            result = response.json()
+            try:
+                result = response.json()
+            except ValueError as json_err:
+                raise RuntimeError(
+                    f"HTTP tool [{self.name}] returned non-JSON response "
+                    f"(status={response.status_code}): {response.text[:200]}"
+                ) from json_err
             logger.info(f"HTTP tool [{self.name}] executed successfully")
             return result
 
@@ -227,7 +233,13 @@ class MCPTool(BaseTool):
             )
 
             response.raise_for_status()
-            result = response.json()
+            try:
+                result = response.json()
+            except ValueError as json_err:
+                raise RuntimeError(
+                    f"MCP tool [{self.name}] returned non-JSON response "
+                    f"(status={response.status_code}): {response.text[:200]}"
+                ) from json_err
             logger.info(f"MCP tool [{self.name}] executed successfully")
             return result
 
@@ -303,7 +315,11 @@ class ToolRegistry:
         """
         import yaml
 
-        with open(config_path, 'r') as f:
+        config_path = Path(config_path)
+        if not config_path.exists():
+            raise FileNotFoundError(f"Tool config file not found: {config_path}")
+
+        with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
 
         for tool_config in config.get('tools', []):

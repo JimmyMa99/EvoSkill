@@ -1,11 +1,11 @@
-"""Tests for tresskill.script — Python 脚本验证和存储。"""
+"""Tests for treeskill.script — Python 脚本验证和存储。"""
 
 import textwrap
 from pathlib import Path
 
 import pytest
 
-from tresskill.script import (
+from treeskill.script import (
     SCRIPT_FILE,
     ScriptValidator,
     load_script,
@@ -262,8 +262,8 @@ class TestSkillIntegration:
 
     def test_skill_load_with_script(self, tmp_path):
         """Skill 目录包含 script.py 时，自动加载到 skill.script。"""
-        from tresskill.skill import load, save
-        from tresskill.schema import Skill
+        from treeskill.skill import load, save
+        from treeskill.schema import Skill
 
         # 创建完整的 skill 目录
         skill = Skill(
@@ -285,8 +285,8 @@ class TestSkillIntegration:
 
     def test_skill_save_without_script(self, tmp_path):
         """没有脚本时不创建 script.py。"""
-        from tresskill.skill import save
-        from tresskill.schema import Skill
+        from treeskill.skill import save
+        from treeskill.schema import Skill
 
         skill = Skill(
             name="no-script",
@@ -298,8 +298,8 @@ class TestSkillIntegration:
 
     def test_skill_remove_script(self, tmp_path):
         """移除脚本后，保存时删除 script.py。"""
-        from tresskill.skill import load, save
-        from tresskill.schema import Skill
+        from treeskill.skill import load, save
+        from treeskill.schema import Skill
 
         # 先创建带脚本的
         skill = Skill(

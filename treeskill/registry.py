@@ -98,7 +98,7 @@ class TreeSkillRegistry:
     """
 
     _instance = None
-    _lock = __import__('threading').Lock()
+    _lock = __import__("threading").Lock()  # noqa: lazy import to avoid circular deps
 
     def __new__(cls):
         if cls._instance is None:
@@ -460,8 +460,15 @@ class TreeSkillRegistry:
 
         logger.info(f"Loaded config from {config_path}")
 
+    # Allowlist of module prefixes permitted for dynamic imports.
+    _ALLOWED_IMPORT_PREFIXES = ("treeskill.",)
+
     def _import_class(self, class_path: str) -> Type:
         """Dynamically import a class by path.
+
+        Only modules whose path starts with an allowed prefix are
+        permitted.  This prevents arbitrary code execution from
+        untrusted configuration files.
 
         Parameters
         ----------
@@ -472,7 +479,19 @@ class TreeSkillRegistry:
         -------
         Type
             The imported class.
+
+        Raises
+        ------
+        ValueError
+            If the module path is not in the allowlist.
         """
+        if not any(class_path.startswith(p) for p in self._ALLOWED_IMPORT_PREFIXES):
+            raise ValueError(
+                f"Import blocked: '{class_path}' is not under an allowed prefix "
+                f"{self._ALLOWED_IMPORT_PREFIXES}. Update _ALLOWED_IMPORT_PREFIXES "
+                f"in TreeSkillRegistry if you need to load external plugins."
+            )
+
         module_path, class_name = class_path.rsplit('.', 1)
         module = importlib.import_module(module_path)
         return getattr(module, class_name)

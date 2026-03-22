@@ -534,7 +534,7 @@ def resolve_skill_tools(
             from treeskill.script import load_script_as_tools
             script_tools = load_script_as_tools(skill_dir)
             tools.update(script_tools)
-        except (ValueError, Exception) as exc:
+        except Exception as exc:
             logger.warning("Failed to load tools from script.py: %s", exc)
 
     return tools

@@ -25,7 +25,6 @@ graph TD
 ```
 """
 
-import json
 import logging
 import sys
 from pathlib import Path
@@ -40,8 +39,9 @@ from treeskill import (
     TreeOptimizerConfig,
     ConversationExperience,
     CompositeFeedback,
-    FeedbackType,
 )
+from treeskill.skill_tree import SkillNode
+from treeskill.core.tree_optimizer import TreeOptimizationResult
 
 # Configure logging to see what's happening
 logging.basicConfig(
@@ -120,101 +120,94 @@ def collect_experiences() -> List[ConversationExperience]:
 
     # Example 1: Formal email task - Good response
     exp1 = ConversationExperience(
-        conversation=[
+        messages=[
             {"role": "user", "content": "Write a formal business email to a client"},
-            {"role": "assistant", "content": "Dear Client, I hope this email finds you well..."},
-        ]
-    )
-    exp1.feedback = CompositeFeedback(
-        feedback_type=FeedbackType.POSITIVE,
-        critique="Appropriate formal tone",
-        score=0.9,
+        ],
+        response="Dear Client, I hope this email finds you well...",
+        feedback=CompositeFeedback(
+            critique="Appropriate formal tone",
+            score=0.9,
+        ),
     )
     experiences.append(exp1)
 
     # Example 2: Casual chat task - Bad response (too formal)
     exp2 = ConversationExperience(
-        conversation=[
+        messages=[
             {"role": "user", "content": "Chat with me casually about hobbies"},
-            {"role": "assistant", "content": "Dear Sir/Madam, I would be delighted to discuss..."},
-        ]
-    )
-    exp2.feedback = CompositeFeedback(
-        feedback_type=FeedbackType.NEGATIVE,
-        critique="Too formal for casual chat",
-        correction="Hey! I'd love to chat about hobbies! What do you enjoy doing?",
-        score=0.2,
+        ],
+        response="Dear Sir/Madam, I would be delighted to discuss...",
+        feedback=CompositeFeedback(
+            critique="Too formal for casual chat",
+            correction="Hey! I'd love to chat about hobbies! What do you enjoy doing?",
+            score=0.2,
+        ),
     )
     experiences.append(exp2)
 
     # Example 3: Another formal task - Good
     exp3 = ConversationExperience(
-        conversation=[
+        messages=[
             {"role": "user", "content": "Write a professional report summary"},
-            {"role": "assistant", "content": "Executive Summary: This report outlines..."},
-        ]
-    )
-    exp3.feedback = CompositeFeedback(
-        feedback_type=FeedbackType.POSITIVE,
-        critique="Professional and clear",
-        score=0.85,
+        ],
+        response="Executive Summary: This report outlines...",
+        feedback=CompositeFeedback(
+            critique="Professional and clear",
+            score=0.85,
+        ),
     )
     experiences.append(exp3)
 
     # Example 4: Another casual task - Bad (too formal again)
     exp4 = ConversationExperience(
-        conversation=[
+        messages=[
             {"role": "user", "content": "Help me write a fun social media post"},
-            {"role": "assistant", "content": "Dear Valued Followers, It is with great pleasure..."},
-        ]
-    )
-    exp4.feedback = CompositeFeedback(
-        feedback_type=FeedbackType.NEGATIVE,
-        critique="Way too formal for social media",
-        correction="Hey friends! 🎉 Check this out!",
-        score=0.15,
+        ],
+        response="Dear Valued Followers, It is with great pleasure...",
+        feedback=CompositeFeedback(
+            critique="Way too formal for social media",
+            correction="Hey friends! Check this out!",
+            score=0.15,
+        ),
     )
     experiences.append(exp4)
 
     # Example 5: More formal tasks
     exp5 = ConversationExperience(
-        conversation=[
+        messages=[
             {"role": "user", "content": "Draft a formal apology letter"},
-            {"role": "assistant", "content": "Dear Mr. Smith, I am writing to sincerely apologize..."},
-        ]
-    )
-    exp5.feedback = CompositeFeedback(
-        feedback_type=FeedbackType.POSITIVE,
-        critique="Perfect formal tone for apology",
-        score=0.88,
+        ],
+        response="Dear Mr. Smith, I am writing to sincerely apologize...",
+        feedback=CompositeFeedback(
+            critique="Perfect formal tone for apology",
+            score=0.88,
+        ),
     )
     experiences.append(exp5)
 
     # Example 6: Another casual task - Better response
     exp6 = ConversationExperience(
-        conversation=[
+        messages=[
             {"role": "user", "content": "Write a friendly reminder to my team"},
-            {"role": "assistant", "content": "Hey team! Just a quick reminder about..."},
-        ]
-    )
-    exp6.feedback = CompositeFeedback(
-        feedback_type=FeedbackType.POSITIVE,
-        critique="Good casual tone",
-        score=0.75,
+        ],
+        response="Hey team! Just a quick reminder about...",
+        feedback=CompositeFeedback(
+            critique="Good casual tone",
+            score=0.75,
+        ),
     )
     experiences.append(exp6)
 
     # Example 7: One more formal
     exp7 = ConversationExperience(
-        conversation=[
+        messages=[
             {"role": "user", "content": "Create a formal meeting invitation"},
-            {"role": "assistant", "content": "You are cordially invited to attend..."},
-        ]
-    )
-    exp7.feedback = CompositeFeedback(
-        feedback_type=FeedbackType.POSITIVE,
-        critique="Professional invitation",
-        score=0.9,
+        ],
+        response="You are cordially invited to attend...",
+        feedback=CompositeFeedback(
+            critique="Professional invitation",
+            score=0.9,
+        ),
     )
     experiences.append(exp7)
 
@@ -392,7 +385,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # Import SkillNode (needed for creating tree)
-    from treeskill.skill_tree import SkillNode
-
     main()
