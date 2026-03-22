@@ -20,8 +20,8 @@ config.yaml 格式::
 
 使用方式::
 
-    from tresskill.skill import load, save
-    from tresskill.agenda import AgendaManager, compile_agenda_context
+    from treeskill.skill import load, save
+    from treeskill.agenda import AgendaManager, compile_agenda_context
 
     skill = load("./my-skill")          # agenda 自动加载到 skill.agenda
     mgr = AgendaManager(skill)          # 包装 skill.agenda 提供便捷操作
@@ -38,7 +38,7 @@ import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Union
 
-from tresskill.schema import (
+from treeskill.schema import (
     AgendaEntry,
     AgendaType,
     Recurrence,

@@ -22,6 +22,26 @@ from treeskill.core.optimizer_config import OptimizerConfig, Validator
 logger = logging.getLogger(__name__)
 
 
+def _raw_llm_call(adapter: ModelAdapter, messages: list, temperature: float = 0.7) -> str:
+    """Make a raw LLM call using the adapter's low-level API.
+
+    Uses ``_call_api`` (defined on ``BaseModelAdapter``) when available,
+    otherwise falls back to ``generate`` with a ``TextPrompt``.
+    """
+    if hasattr(adapter, '_call_api'):
+        return adapter._call_api(messages=messages, system=None, temperature=temperature)
+
+    # Fallback: extract system message and use generate()
+    from treeskill.core.prompts import TextPrompt
+    system_content = ""
+    for msg in messages:
+        if msg.get("role") == "system":
+            system_content = msg.get("content", "")
+            break
+    prompt = TextPrompt(content=system_content)
+    return adapter.generate(prompt, temperature=temperature)
+
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -408,11 +428,7 @@ class TreeAwareOptimizer:
 
         # Call LLM
         try:
-            raw = self.adapter._call_api(
-                messages=judge_messages,
-                system=None,
-                temperature=0.3,
-            )
+            raw = _raw_llm_call(self.adapter, judge_messages, temperature=0.3)
             raw = raw.strip()
 
             # Parse response
@@ -506,11 +522,7 @@ class TreeAwareOptimizer:
 
         try:
             # Call LLM
-            raw = self.adapter._call_api(
-                messages=rewrite_messages,
-                system=None,
-                temperature=0.5,
-            )
+            raw = _raw_llm_call(self.adapter, rewrite_messages, temperature=0.5)
             raw = raw.strip()
 
             # Clean up potential markdown fences
@@ -858,41 +870,41 @@ class TreeAwareOptimizer:
         # Simple heuristic: split by common patterns
         lines = prompt_text.split('\n')
         current_section = None
-        section_content = []
+        section_content: Dict[str, List[str]] = {
+            "instruction": [],
+            "examples": [],
+            "constraints": [],
+        }
 
         for line in lines:
-            line_lower = line.lower()
+            line_lower = line.lower().strip()
 
             # Detect section headers
             if line_lower.startswith("instruction:"):
                 current_section = "instruction"
                 continue
-
-            if line_lower.startswith("example:"):
-                current_section = "example"
+            elif line_lower.startswith("example:") or line_lower.startswith("examples:"):
+                current_section = "examples"
+                continue
+            elif line_lower.startswith("constraint:") or line_lower.startswith("constraints:"):
+                current_section = "constraints"
                 continue
 
-            if line_lower.startswith("constraint:"):
-                current_section = "constraint"
-                continue
-
-            # Accum content
+            # Accumulate content
             if current_section:
                 section_content[current_section].append(line)
-            elif current_section:
-                # Fuzzy match
-                if "instruction" in line or "constraint" in line:
-                    parts["instruction"] += "\n" + line
-                elif "example" in line_lower or "here's an example" in line_lower:
-                    parts["examples"] += "\n" + line
-                elif "constraint" in line.lower:
-                    parts["constraints"] += "\n" + line
+            else:
+                # Fuzzy match for lines before any header
+                if "example" in line_lower or "here's an example" in line_lower:
+                    section_content["examples"].append(line)
+                elif "constraint" in line_lower:
+                    section_content["constraints"].append(line)
                 else:
-                    parts["instruction"] += "\n" + line
+                    section_content["instruction"].append(line)
 
-        # Clean up sections
+        # Build parts from accumulated content
         for section in parts:
-            parts[section] = parts[section].strip()
+            parts[section] = "\n".join(section_content.get(section, [])).strip()
 
         return parts
 
@@ -945,11 +957,7 @@ class TreeAwareOptimizer:
         ]
 
         # Call LLM
-        new_content = self.adapter._call_api(
-            messages=rewrite_messages,
-            system=None,
-            temperature=0.5,
-        )
+        new_content = _raw_llm_call(self.adapter, rewrite_messages, temperature=0.5)
         new_content = new_content.strip()
 
         # Clean up markdown fences

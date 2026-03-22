@@ -161,16 +161,16 @@ def get_strategy(name: str) -> OptimizationStrategy:
     ValueError
         If strategy name is unknown.
     """
-    strategies = {
-        "conservative": ConservativeStrategy(),
-        "aggressive": AggressiveStrategy(),
-        "adaptive": AdaptiveStrategy(),
+    _strategy_classes = {
+        "conservative": ConservativeStrategy,
+        "aggressive": AggressiveStrategy,
+        "adaptive": AdaptiveStrategy,
     }
 
-    if name not in strategies:
+    if name not in _strategy_classes:
         raise ValueError(
             f"Unknown strategy: {name}. "
-            f"Available: {list(strategies.keys())}"
+            f"Available: {list(_strategy_classes.keys())}"
         )
 
-    return strategies[name]
+    return _strategy_classes[name]()

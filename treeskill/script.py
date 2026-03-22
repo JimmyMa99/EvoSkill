@@ -443,7 +443,7 @@ def load_script_as_tools(
     ValueError
         验证失败时。
     """
-    from tresskill.tools import PythonFunctionTool
+    from treeskill.tools import PythonFunctionTool
 
     source = load_script(skill_dir)
     if source is None:

@@ -200,7 +200,9 @@ class OpenAIAdapter(BaseModelAdapter):
         response = self.client.chat.completions.create(**api_params)
 
         # Extract response
-        content = response.choices[0].message.content
+        if not response.choices:
+            raise RuntimeError("OpenAI API returned empty choices array")
+        content = response.choices[0].message.content or ""
         logger.debug(f"Generated {len(content)} characters")
 
         return content
@@ -229,7 +231,9 @@ class OpenAIAdapter(BaseModelAdapter):
             **kwargs,
         )
 
-        return response.choices[0].message.content
+        if not response.choices:
+            raise RuntimeError("OpenAI API returned empty choices array")
+        return response.choices[0].message.content or ""
 
     def _count_tokens_impl(self, text: str) -> int:
         """Count tokens using tiktoken."""

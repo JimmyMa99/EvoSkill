@@ -38,8 +38,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ── Config ─────────────────────────────────────────────
-MAIN_MODEL = "Qwen/Qwen3-8B"
-JUDGE_MODEL = "Qwen/Qwen2.5-72B-Instruct"
+MAIN_MODEL = os.getenv("TREE_LLM_MODEL", "Qwen/Qwen3-8B")
+JUDGE_MODEL = os.getenv("TREE_LLM_JUDGE_MODEL", "Qwen/Qwen2.5-72B-Instruct")
 DATA_PATH = "demo/data/intern_camp5.csv"
 
 # 只用 3 类，降低复杂度

@@ -66,10 +66,16 @@ class TraceStorage:
         traces_by_id: Dict[str, Trace] = {}
         trace_order: List[str] = []
         with self._path.open("r", encoding="utf-8") as fh:
-            for line in fh:
+            for line_num, line in enumerate(fh, 1):
                 line = line.strip()
                 if line:
-                    trace = Trace.model_validate_json(line)
+                    try:
+                        trace = Trace.model_validate_json(line)
+                    except Exception as e:
+                        logger.warning(
+                            "Skipping malformed trace at line %d: %s", line_num, e
+                        )
+                        continue
                     if trace.id not in traces_by_id:
                         trace_order.append(trace.id)
                     traces_by_id[trace.id] = trace
