@@ -118,6 +118,10 @@ class TreeSkillRegistry:
         self._validators: Dict[str, Type] = {}
         self._storages: Dict[str, Type] = {}
         self._hooks: Dict[str, List[Callable]] = {}
+        self._scorers: Dict[str, Callable] = {}
+        self._gradients: Dict[str, str] = {}
+        self._rewriters: Dict[str, str] = {}
+        self._skill_formats: Dict[str, Type] = {}
 
         # Metadata storage
         self._adapter_meta: Dict[str, ComponentMeta] = {}
@@ -128,13 +132,25 @@ class TreeSkillRegistry:
         # Default components
         self._default_adapter: Optional[str] = None
         self._default_optimizer: Optional[str] = None
+        self._default_scorer: Optional[str] = None
 
         # Configuration
         self._config: Dict[str, Any] = {}
 
         self._initialized = True
+        self._builtins_loaded = False
 
         logger.info("TreeSkillRegistry initialized")
+
+    def _ensure_builtins(self) -> None:
+        """Lazily load built-in scorers, gradients, rewriters."""
+        if self._builtins_loaded:
+            return
+        self._builtins_loaded = True
+        try:
+            import treeskill.builtin_scorers  # noqa: F401
+        except ImportError:
+            pass
 
     # ------------------------------------------------------------------
     # Adapter Registration
@@ -497,6 +513,157 @@ class TreeSkillRegistry:
         return getattr(module, class_name)
 
     # ------------------------------------------------------------------
+    # Scorer Registration
+    # ------------------------------------------------------------------
+
+    def register_scorer(
+        self,
+        name: str,
+        scorer_fn: Callable,
+        set_default: bool = False,
+    ) -> None:
+        """Register a scoring function.
+
+        A scorer takes ``(output: str, expected: str, context: dict) -> float``
+        and returns a 0-1 score. Used by APO beam search and evaluation.
+
+        Parameters
+        ----------
+        name : str
+            Unique name (e.g. "judge-grade", "exact-match", "code-review").
+        scorer_fn : Callable
+            Function with signature ``(output, expected, context) -> float``.
+        set_default : bool
+            Set as default scorer.
+        """
+        self._scorers[name] = scorer_fn
+        if set_default or self._default_scorer is None:
+            self._default_scorer = name
+        logger.info(f"Registered scorer: {name}")
+
+    def get_scorer(self, name: Optional[str] = None) -> Callable:
+        """Get a scorer function by name."""
+        self._ensure_builtins()
+        scorer_name = name or self._default_scorer
+        if not scorer_name or scorer_name not in self._scorers:
+            available = list(self._scorers.keys())
+            raise KeyError(
+                f"Scorer '{scorer_name}' not found. Available: {available}"
+            )
+        return self._scorers[scorer_name]
+
+    def list_scorers(self) -> List[str]:
+        """List all registered scorers."""
+        self._ensure_builtins()
+        return list(self._scorers.keys())
+
+    # ------------------------------------------------------------------
+    # Gradient Template Registration
+    # ------------------------------------------------------------------
+
+    def register_gradient(self, name: str, template: str) -> None:
+        """Register a gradient analysis template.
+
+        A gradient template is a system prompt that tells the judge model
+        how to analyze failures and produce a textual gradient.
+
+        Parameters
+        ----------
+        name : str
+            Unique name (e.g. "code-debug", "copy-review", "root-cause").
+        template : str
+            System prompt template for gradient computation.
+        """
+        self._gradients[name] = template
+        logger.info(f"Registered gradient template: {name}")
+
+    def get_gradient(self, name: str) -> str:
+        """Get a gradient template by name."""
+        self._ensure_builtins()
+        if name not in self._gradients:
+            available = list(self._gradients.keys())
+            raise KeyError(
+                f"Gradient template '{name}' not found. Available: {available}"
+            )
+        return self._gradients[name]
+
+    def list_gradients(self) -> List[str]:
+        """List all registered gradient templates."""
+        return list(self._gradients.keys())
+
+    # ------------------------------------------------------------------
+    # Rewriter Template Registration
+    # ------------------------------------------------------------------
+
+    def register_rewriter(self, name: str, template: str) -> None:
+        """Register a prompt rewrite template.
+
+        A rewriter template is a system prompt that tells the rewrite model
+        how to modify a skill's system prompt based on the gradient analysis.
+
+        Parameters
+        ----------
+        name : str
+            Unique name (e.g. "full-rewrite", "conservative", "distill").
+        template : str
+            System prompt template for prompt rewriting.
+        """
+        self._rewriters[name] = template
+        logger.info(f"Registered rewriter template: {name}")
+
+    def get_rewriter(self, name: str) -> str:
+        """Get a rewriter template by name."""
+        self._ensure_builtins()
+        if name not in self._rewriters:
+            available = list(self._rewriters.keys())
+            raise KeyError(
+                f"Rewriter template '{name}' not found. Available: {available}"
+            )
+        return self._rewriters[name]
+
+    def list_rewriters(self) -> List[str]:
+        """List all registered rewriter templates."""
+        return list(self._rewriters.keys())
+
+    # ------------------------------------------------------------------
+    # Skill Format Registration
+    # ------------------------------------------------------------------
+
+    def register_skill_format(
+        self,
+        name: str,
+        format_class: Type,
+    ) -> None:
+        """Register a skill format adapter for import/export.
+
+        A skill format class must implement:
+        - ``load(path) -> Skill`` — import a skill from this format
+        - ``save(skill, path)`` — export a skill to this format
+
+        Parameters
+        ----------
+        name : str
+            Format name (e.g. "treeskill", "minimax", "agentskills-io").
+        format_class : Type
+            Class with ``load`` and ``save`` methods.
+        """
+        self._skill_formats[name] = format_class
+        logger.info(f"Registered skill format: {name}")
+
+    def get_skill_format(self, name: str) -> Type:
+        """Get a skill format adapter by name."""
+        if name not in self._skill_formats:
+            available = list(self._skill_formats.keys())
+            raise KeyError(
+                f"Skill format '{name}' not found. Available: {available}"
+            )
+        return self._skill_formats[name]
+
+    def list_skill_formats(self) -> List[str]:
+        """List all registered skill formats."""
+        return list(self._skill_formats.keys())
+
+    # ------------------------------------------------------------------
     # Utility Methods
     # ------------------------------------------------------------------
 
@@ -507,15 +674,21 @@ class TreeSkillRegistry:
         self._validators.clear()
         self._storages.clear()
         self._hooks.clear()
+        self._scorers.clear()
+        self._gradients.clear()
+        self._rewriters.clear()
+        self._skill_formats.clear()
         self._adapter_meta.clear()
         self._optimizer_meta.clear()
         self._default_adapter = None
         self._default_optimizer = None
+        self._default_scorer = None
         self._config.clear()
         logger.info("Registry reset")
 
     def summary(self) -> Dict[str, Any]:
         """Get a summary of registered components."""
+        self._ensure_builtins()
         return {
             'adapters': {
                 'count': len(self._adapters),
@@ -526,6 +699,23 @@ class TreeSkillRegistry:
                 'count': len(self._optimizers),
                 'names': list(self._optimizers.keys()),
                 'default': self._default_optimizer,
+            },
+            'scorers': {
+                'count': len(self._scorers),
+                'names': list(self._scorers.keys()),
+                'default': self._default_scorer,
+            },
+            'gradients': {
+                'count': len(self._gradients),
+                'names': list(self._gradients.keys()),
+            },
+            'rewriters': {
+                'count': len(self._rewriters),
+                'names': list(self._rewriters.keys()),
+            },
+            'skill_formats': {
+                'count': len(self._skill_formats),
+                'names': list(self._skill_formats.keys()),
             },
             'hooks': {
                 event: len(callbacks)
@@ -589,6 +779,84 @@ def optimizer(name: str, set_default: bool = False, meta: Optional[ComponentMeta
     """
     def decorator(cls):
         registry.register_optimizer(name, cls, meta=meta, set_default=set_default)
+        return cls
+    return decorator
+
+
+def scorer(name: str, set_default: bool = False):
+    """Decorator to register a scoring function.
+
+    Examples
+    --------
+    >>> from treeskill import scorer
+    >>>
+    >>> @scorer("exact-match")
+    ... def exact_match(output: str, expected: str, context: dict) -> float:
+    ...     return 1.0 if output.strip() == expected.strip() else 0.0
+    >>>
+    >>> @scorer("judge-grade", set_default=True)
+    ... def judge_grade(output: str, expected: str, context: dict) -> float:
+    ...     judge = context["judge"]
+    ...     return judge.grade(output, expected)
+    """
+    def decorator(func):
+        registry.register_scorer(name, func, set_default=set_default)
+        return func
+    return decorator
+
+
+def gradient(name: str):
+    """Decorator to register a gradient template string.
+
+    Examples
+    --------
+    >>> from treeskill import gradient
+    >>>
+    >>> @gradient("code-debug")
+    ... def code_debug_template():
+    ...     return "You are a code debugger. For each failure..."
+    """
+    def decorator(func):
+        template = func()
+        registry.register_gradient(name, template)
+        return func
+    return decorator
+
+
+def rewriter(name: str):
+    """Decorator to register a rewriter template string.
+
+    Examples
+    --------
+    >>> from treeskill import rewriter
+    >>>
+    >>> @rewriter("distill")
+    ... def distill_template():
+    ...     return "You are a prompt distillation expert. Simplify..."
+    """
+    def decorator(func):
+        template = func()
+        registry.register_rewriter(name, template)
+        return func
+    return decorator
+
+
+def skill_format(name: str):
+    """Decorator to register a skill format adapter.
+
+    Examples
+    --------
+    >>> from treeskill import skill_format
+    >>>
+    >>> @skill_format("minimax")
+    ... class MiniMaxFormat:
+    ...     @staticmethod
+    ...     def load(path) -> Skill: ...
+    ...     @staticmethod
+    ...     def save(skill, path): ...
+    """
+    def decorator(cls):
+        registry.register_skill_format(name, cls)
         return cls
     return decorator
 
