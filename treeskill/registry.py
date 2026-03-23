@@ -589,6 +589,7 @@ class TreeSkillRegistry:
 
     def list_gradients(self) -> List[str]:
         """List all registered gradient templates."""
+        self._ensure_builtins()
         return list(self._gradients.keys())
 
     # ------------------------------------------------------------------
@@ -623,6 +624,7 @@ class TreeSkillRegistry:
 
     def list_rewriters(self) -> List[str]:
         """List all registered rewriter templates."""
+        self._ensure_builtins()
         return list(self._rewriters.keys())
 
     # ------------------------------------------------------------------

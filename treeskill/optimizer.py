@@ -351,8 +351,13 @@ class APOEngine:
 
         rollouts_block = "\n".join(rollout_descriptions)
 
-        # Randomly select gradient template
-        system_prompt = random.choice(_GRADIENT_TEMPLATES)
+        # Randomly select gradient template (registry overrides hardcoded)
+        from treeskill.registry import registry
+        reg_gradients = registry.list_gradients()
+        if reg_gradients:
+            system_prompt = registry.get_gradient(random.choice(reg_gradients))
+        else:
+            system_prompt = random.choice(_GRADIENT_TEMPLATES)
 
         target_hint = ""
         if skill.target:
@@ -385,8 +390,14 @@ class APOEngine:
         """Build the messages for a single edit/rewrite request.
 
         Each call randomly picks an edit template for diversity.
+        Registry-registered rewriters override hardcoded templates.
         """
-        system_prompt = random.choice(_EDIT_TEMPLATES)
+        from treeskill.registry import registry
+        reg_rewriters = registry.list_rewriters()
+        if reg_rewriters:
+            system_prompt = registry.get_rewriter(random.choice(reg_rewriters))
+        else:
+            system_prompt = random.choice(_EDIT_TEMPLATES)
 
         target_hint = ""
         if skill.target:
