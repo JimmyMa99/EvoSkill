@@ -1,0 +1,62 @@
+[
+  {
+    "id": "copy-hero-saas",
+    "task": "Write a hero section for a project management SaaS. Include headline, subheadline, CTA button text, and 3 trust badges. Use AIDA framework. Output as HTML with Tailwind CSS.",
+    "key_rules": ["AIDA framework", "no Lorem ipsum", "no emoji", "real persuasive copy", "compelling headline"],
+    "split": "train"
+  },
+  {
+    "id": "copy-hero-ai",
+    "task": "Write a hero section for an AI writing assistant tool. Include headline, subheadline, two CTA buttons (primary + secondary), and a one-line social proof. Use AIDA framework. Output as HTML with Tailwind CSS.",
+    "key_rules": ["AIDA framework", "no Lorem ipsum", "no emoji", "dual CTA", "social proof"],
+    "split": "train"
+  },
+  {
+    "id": "copy-features-4",
+    "task": "Write a features section with 4 feature blocks for a cloud storage product. Each block has an icon placeholder (use a colored div), headline, and 2-sentence description. Use FAB framework. Output as HTML with Tailwind CSS.",
+    "key_rules": ["FAB framework", "no Lorem ipsum", "no emoji", "no placeholder images", "benefit-focused copy"],
+    "split": "train"
+  },
+  {
+    "id": "copy-cta-course",
+    "task": "Write a CTA section for a premium UX design course ($299). Include headline, 3 objection-busting bullet points, price display, and two buttons (Buy Now + Learn More). Use PAS framework. Output as HTML with Tailwind CSS.",
+    "key_rules": ["PAS framework", "objection handling", "no emoji", "real pricing", "urgency without being pushy"],
+    "split": "train"
+  },
+  {
+    "id": "copy-testimonial",
+    "task": "Write a testimonial section with 3 customer quotes for a fitness app. Each testimonial has name, role, company, star rating (use text stars), and a 2-sentence quote. Write real, believable copy. Output as HTML with Tailwind CSS.",
+    "key_rules": ["real testimonial copy", "no Lorem ipsum", "no emoji", "believable personas", "specific results mentioned"],
+    "split": "train"
+  },
+  {
+    "id": "copy-pricing-3",
+    "task": "Write a pricing section with 3 tiers (Starter $9/mo, Pro $29/mo, Enterprise custom) for an email marketing platform. Each tier has name, price, 5 features, and a CTA button. Highlight Pro as recommended. Output as HTML with Tailwind CSS.",
+    "key_rules": ["clear tier differentiation", "no emoji", "highlighted recommended tier", "feature comparison", "real pricing"],
+    "split": "train"
+  },
+  {
+    "id": "copy-faq",
+    "task": "Write an FAQ section with 5 questions and answers for a SaaS billing tool. Questions should address common objections (security, pricing, migration, support, cancellation). Output as collapsible accordion HTML with Tailwind CSS.",
+    "key_rules": ["objection-handling FAQ", "no emoji", "reassuring tone", "specific answers not generic", "accordion UI"],
+    "split": "val"
+  },
+  {
+    "id": "copy-newsletter",
+    "task": "Write a newsletter signup section for a tech blog. Include a compelling headline, one-sentence value prop, email input field, submit button, and a privacy note. Use AIDA framework. Output as HTML with Tailwind CSS.",
+    "key_rules": ["AIDA framework", "no emoji", "privacy reassurance", "clear value prop", "single email field"],
+    "split": "val"
+  },
+  {
+    "id": "copy-hero-ecommerce",
+    "task": "Write a hero section for a sustainable fashion brand's online store. Include headline, subheadline emphasizing eco-friendly values, CTA button, and a 'Free shipping over $50' badge. Use AIDA framework. Output as HTML with Tailwind CSS.",
+    "key_rules": ["AIDA framework", "no emoji", "brand values in copy", "no Lorem ipsum", "authentic tone"],
+    "split": "test"
+  },
+  {
+    "id": "copy-about-startup",
+    "task": "Write an About section for a fintech startup. Include company mission (one sentence), 3 value propositions with short descriptions, and a team stats bar (50+ employees, 3 offices, $10M raised). Output as HTML with Tailwind CSS.",
+    "key_rules": ["concise mission statement", "no emoji", "real numbers", "no Lorem ipsum", "professional tone"],
+    "split": "test"
+  }
+]

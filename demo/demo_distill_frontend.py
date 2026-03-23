@@ -85,7 +85,14 @@ def load_skill_md(path: Path) -> Skill:
         name="frontend-dev",
         description="Frontend development skill for building production-ready web pages",
         system_prompt=body,
-        target="Adapt this skill for a smaller model while preserving key rules and output quality",
+        target=(
+            "Adapt this skill for a smaller reasoning model (Intern-S1-Pro). "
+            "PRUNE sections the model struggles with (e.g. Three.js/WebGL, complex GSAP sequences). "
+            "EXPAND key rules with explicit examples — e.g. instead of just listing 'ease: [0.16, 1, 0.3, 1]', "
+            "explain what it means ('smooth deceleration curve') and show a usage snippet. "
+            "Keep all script paths and tool references intact. "
+            "The model needs more hand-holding on design patterns but less advanced 3D/shader content."
+        ),
         version="v1.0",
     )
 
@@ -97,22 +104,32 @@ def call_model(
     model: str,
     system_prompt: str,
     user_text: str,
-    max_tokens: int = 4096,
+    max_tokens: int = 12000,
     temperature: float = 0.7,
+    max_retries: int = 5,
 ) -> str:
-    """Call an Anthropic-protocol API and return text content."""
-    resp = client.messages.create(
-        model=model,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_text}],
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
-    text_parts = []
-    for block in resp.content:
-        if getattr(block, "type", None) == "text":
-            text_parts.append(block.text)
-    return "".join(text_parts).strip()
+    """Call an Anthropic-protocol API with retry on transient errors."""
+    import time as _time
+    for attempt in range(max_retries):
+        try:
+            resp = client.messages.create(
+                model=model,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_text}],
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            text_parts = []
+            for block in resp.content:
+                if getattr(block, "type", None) == "text":
+                    text_parts.append(block.text)
+            return "".join(text_parts).strip()
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            delay = min(2 ** attempt, 30) * (0.5 + __import__("random").random())
+            logger.warning(f"call_model error (attempt {attempt+1}): {e} — retrying in {delay:.1f}s")
+            _time.sleep(delay)
 
 
 # ── Phase 1: Gold Standards ───────────────────────────
@@ -300,24 +317,26 @@ def main():
     )
 
     # Framework config (for APO engine)
-    config = GlobalConfig()
-    config = config.model_copy(update={
-        "llm": config.llm.model_copy(update={
-            "model": STUDENT_MODEL,
-            "base_url": STUDENT_BASE_URL,
-            "protocol": "anthropic",
-            "judge_model": TEACHER_MODEL,
-            "judge_base_url": TEACHER_BASE_URL,
-            "judge_protocol": "anthropic",
-        }),
-        "apo": config.apo.model_copy(update={
-            "num_candidates": 2,
-            "gradient_accumulation_steps": 6,
-            "beam_width": 2,
-            "branch_factor": 2,
-            "beam_rounds": 2,
-        }),
-    })
+    # Set env vars so LLMConfig picks them up automatically
+    os.environ["TREE_LLM_API_KEY"] = STUDENT_API_KEY
+    os.environ["TREE_LLM_BASE_URL"] = STUDENT_BASE_URL
+    os.environ["TREE_LLM_MODEL"] = STUDENT_MODEL
+    os.environ["TREE_LLM_PROTOCOL"] = "anthropic"
+    os.environ["TREE_LLM_JUDGE_API_KEY"] = TEACHER_API_KEY
+    os.environ["TREE_LLM_JUDGE_BASE_URL"] = TEACHER_BASE_URL
+    os.environ["TREE_LLM_JUDGE_MODEL"] = TEACHER_MODEL
+    os.environ["TREE_LLM_JUDGE_PROTOCOL"] = "anthropic"
+
+    from treeskill.config import LLMConfig, APOConfig
+    llm_config = LLMConfig()
+    apo_config = APOConfig(
+        num_candidates=2,
+        gradient_accumulation_steps=6,
+        beam_width=2,
+        branch_factor=2,
+        beam_rounds=2,
+    )
+    config = GlobalConfig(llm=llm_config, apo=apo_config)
     llm = LLMClient(config)
     engine = APOEngine(config, llm)
 

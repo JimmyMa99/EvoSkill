@@ -316,11 +316,10 @@ def generate_and_save(
     output_dir: Path,
     model_label: str,
 ) -> tuple:
-    """Generate code, save HTML, take screenshot. Returns (code, html_path, screenshot_path)."""
+    """Generate code, save HTML. Returns (code, html_path)."""
     code = call_model(client, model, system_prompt, task["task"])
     html_path = save_html(code, task["id"], model_label, output_dir)
-    screenshot_path = screenshot_html(html_path, output_dir)
-    return code, html_path, screenshot_path
+    return code, html_path
 
 
 def main():
@@ -366,12 +365,12 @@ def main():
         gold = {}
         for task in tasks:
             logger.info(f"  Teacher: {task['id']}...")
-            code, html_path, ss_path = generate_and_save(
+            code, html_path = generate_and_save(
                 teacher_client, TEACHER_MODEL, skill.system_prompt,
                 task, OUTPUT_DIR, "teacher",
             )
             gold[task["id"]] = code
-            logger.info(f"    Code: {len(code)} chars, Screenshot: {ss_path.name}")
+            logger.info(f"    Code: {len(code)} chars, HTML: {html_path.name}")
 
         with open(gold_cache, "w") as f:
             json.dump(gold, f, ensure_ascii=False, indent=2)
@@ -384,7 +383,7 @@ def main():
     baseline_scores = []
     for task in tasks:
         logger.info(f"  Student baseline: {task['id']}...")
-        code, html_path, ss_path = generate_and_save(
+        code, html_path = generate_and_save(
             student_client, STUDENT_MODEL, skill.system_prompt,
             task, OUTPUT_DIR, "student_baseline",
         )
@@ -512,7 +511,7 @@ def main():
     final_scores = []
     for task in tasks:
         logger.info(f"  Final: {task['id']}...")
-        code, html_path, ss_path = generate_and_save(
+        code, html_path = generate_and_save(
             student_client, STUDENT_MODEL, best_skill.system_prompt,
             task, OUTPUT_DIR, "student_final",
         )
