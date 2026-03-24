@@ -41,17 +41,13 @@ logger = logging.getLogger(__name__)
 # ── Config ─────────────────────────────────────────────
 STUDENT_MODEL = "intern-s1-pro"
 STUDENT_BASE_URL = "https://chat.intern-ai.org.cn"
-STUDENT_API_KEY = os.getenv(
-    "INTERN_API_KEY",
-    "REDACTED_INTERN_KEY",
-)
+STUDENT_API_KEY = os.getenv("INTERN_API_KEY")
+assert STUDENT_API_KEY, "Set INTERN_API_KEY env var"
 
 TEACHER_MODEL = "MiniMax-M2.7"
 TEACHER_BASE_URL = "https://api.minimaxi.com/anthropic"
-TEACHER_API_KEY = os.getenv(
-    "MINIMAX_API_KEY",
-    "REDACTED_MINIMAX_KEY",
-)
+TEACHER_API_KEY = os.getenv("MINIMAX_API_KEY")
+assert TEACHER_API_KEY, "Set MINIMAX_API_KEY env var"
 
 SKILL_PATH = Path("demo/data/minimax_frontend_skill.md")
 DATA_PATH = Path("demo/data/frontend_tasks.json")
