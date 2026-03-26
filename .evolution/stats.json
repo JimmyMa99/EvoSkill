@@ -1,0 +1,7 @@
+{
+  "version": "0.1",
+  "best_score": 0.85,
+  "optimized_at": "2026-03-24T12:00:00Z",
+  "gradient_summary": "添加工具优先原则：遇到实时信息问题时使用WebSearch，不要过度收窄能力边界",
+  "candidates_tested": 3
+}
