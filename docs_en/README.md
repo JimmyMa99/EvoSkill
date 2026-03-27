@@ -38,6 +38,8 @@ TreeSkill draws an analogy between LLM prompt optimization and deep learning's t
 - **Checkpoint Resume** -- Resume from last progress after interruption, without wasting completed API calls
 - **Plugin Registry** -- Customize every part of the optimization pipeline with `@scorer`, `@gradient`, `@rewriter`, `@skill_format` decorators ([Guide](../docs_en/REGISTRY_GUIDE.md))
 - **Multi-Endpoint** -- Configure separate API endpoints, models, and protocols (OpenAI / Anthropic) for Actor / Judge / Rewrite roles
+- **Kode CLI Integration** -- Use [Kode](https://github.com/shareAI-lab/Kode-Agent) as the agent forward engine; skills are executed and validated in a real agent loop
+- **AgentHarness** -- Built-in lightweight agent loop with bash / file I/O / skill loading for skill evaluation without external dependencies
 
 ## Installation
 
